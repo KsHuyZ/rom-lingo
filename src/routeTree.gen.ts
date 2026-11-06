@@ -10,23 +10,14 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as AboutRouteImport } from './routes/about'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as TranslateRouteImport } from './routes/translate'
-import { Route as ApiPostsRouteImport } from './routes/api.posts'
-import { Route as PostsIndexRouteImport } from './routes/posts.index'
-import { Route as PostsSlugRouteImport } from './routes/posts.$slug'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 import { Route as ApiJobsIdEventsRouteImport } from './routes/api.jobs.$id.events'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AboutRoute = AboutRouteImport.update({
-  id: '/about',
-  path: '/about',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -37,21 +28,6 @@ const LoginRoute = LoginRouteImport.update({
 const TranslateRoute = TranslateRouteImport.update({
   id: '/translate',
   path: '/translate',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiPostsRoute = ApiPostsRouteImport.update({
-  id: '/api/posts',
-  path: '/api/posts',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PostsIndexRoute = PostsIndexRouteImport.update({
-  id: '/posts/',
-  path: '/posts/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PostsSlugRoute = PostsSlugRouteImport.update({
-  id: '/posts/$slug',
-  path: '/posts/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
@@ -67,82 +43,45 @@ const ApiJobsIdEventsRoute = ApiJobsIdEventsRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/about': typeof AboutRoute
   '/login': typeof LoginRoute
   '/translate': typeof TranslateRoute
-  '/api/posts': typeof ApiPostsRoute
-  '/posts/$slug': typeof PostsSlugRoute
-  '/posts/': typeof PostsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/jobs/$id/events': typeof ApiJobsIdEventsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/about': typeof AboutRoute
   '/login': typeof LoginRoute
   '/translate': typeof TranslateRoute
-  '/api/posts': typeof ApiPostsRoute
-  '/posts/$slug': typeof PostsSlugRoute
-  '/posts': typeof PostsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/jobs/$id/events': typeof ApiJobsIdEventsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/about': typeof AboutRoute
   '/login': typeof LoginRoute
   '/translate': typeof TranslateRoute
-  '/api/posts': typeof ApiPostsRoute
-  '/posts/$slug': typeof PostsSlugRoute
-  '/posts/': typeof PostsIndexRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/jobs/$id/events': typeof ApiJobsIdEventsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/'
-    | '/about'
-    | '/login'
-    | '/translate'
-    | '/api/posts'
-    | '/posts/$slug'
-    | '/posts/'
-    | '/api/auth/$'
-    | '/api/jobs/$id/events'
+    '/' | '/login' | '/translate' | '/api/auth/$' | '/api/jobs/$id/events'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/about'
-    | '/login'
-    | '/translate'
-    | '/api/posts'
-    | '/posts/$slug'
-    | '/posts'
-    | '/api/auth/$'
-    | '/api/jobs/$id/events'
+  to: '/' | '/login' | '/translate' | '/api/auth/$' | '/api/jobs/$id/events'
   id:
     | '__root__'
     | '/'
-    | '/about'
     | '/login'
     | '/translate'
-    | '/api/posts'
-    | '/posts/$slug'
-    | '/posts/'
     | '/api/auth/$'
     | '/api/jobs/$id/events'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  AboutRoute: typeof AboutRoute
   LoginRoute: typeof LoginRoute
   TranslateRoute: typeof TranslateRoute
-  ApiPostsRoute: typeof ApiPostsRoute
-  PostsSlugRoute: typeof PostsSlugRoute
-  PostsIndexRoute: typeof PostsIndexRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiJobsIdEventsRoute: typeof ApiJobsIdEventsRoute
 }
@@ -154,13 +93,6 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/about': {
-      id: '/about'
-      path: '/about'
-      fullPath: '/about'
-      preLoaderRoute: typeof AboutRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -175,27 +107,6 @@ declare module '@tanstack/react-router' {
       path: '/translate'
       fullPath: '/translate'
       preLoaderRoute: typeof TranslateRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/posts': {
-      id: '/api/posts'
-      path: '/api/posts'
-      fullPath: '/api/posts'
-      preLoaderRoute: typeof ApiPostsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/posts/': {
-      id: '/posts/'
-      path: '/posts'
-      fullPath: '/posts/'
-      preLoaderRoute: typeof PostsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/posts/$slug': {
-      id: '/posts/$slug'
-      path: '/posts/$slug'
-      fullPath: '/posts/$slug'
-      preLoaderRoute: typeof PostsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
@@ -217,12 +128,8 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  AboutRoute: AboutRoute,
   LoginRoute: LoginRoute,
   TranslateRoute: TranslateRoute,
-  ApiPostsRoute: ApiPostsRoute,
-  PostsSlugRoute: PostsSlugRoute,
-  PostsIndexRoute: PostsIndexRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiJobsIdEventsRoute: ApiJobsIdEventsRoute,
 }
