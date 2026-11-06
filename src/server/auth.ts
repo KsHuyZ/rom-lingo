@@ -1,6 +1,7 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
+import { oneTap } from "better-auth/plugins";
 import { db } from "./database/client";
 import * as schema from "./database/schema";
 import { grantSignupCredits } from "./credits";
@@ -16,11 +17,14 @@ export const auth = betterAuth({
       verification: schema.verification,
     },
   }),
-  emailAndPassword: {
-    enabled: true,
-    minPasswordLength: 8,
-    // TODO: requireEmailVerification once an email sender is configured —
-    // without it, signup credits can be farmed with throwaway addresses.
+  // Google-only sign-in: one real Google account per user, so throwaway-email
+  // signups (and the free credits they farm) are no longer trivial.
+  emailAndPassword: { enabled: false },
+  socialProviders: {
+    google: {
+      clientId: process.env.GOOGLE_CLIENT_ID ?? "",
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+    },
   },
   databaseHooks: {
     user: {
@@ -32,16 +36,16 @@ export const auth = betterAuth({
     },
   },
   // must stay last: copies Set-Cookie into TanStack Start's response
-  plugins: [tanstackStartCookies()],
+  plugins: [oneTap(), tanstackStartCookies()],
 });
 
 export type SessionUser = { id: string; email: string; name: string };
 
 /**
- * TEMPORARY: login is off, every request runs as one fixed local user with a huge credit
- * grant. Set AUTH_ENABLED=1 to bring the real sign-in back (nothing else needs to change).
+ * Login is on by default. Dev escape hatch: set AUTH_DISABLED=1 and every request runs as one
+ * fixed local user with a huge credit grant.
  */
-export const AUTH_DISABLED = process.env.AUTH_ENABLED !== "1";
+export const AUTH_DISABLED = process.env.AUTH_DISABLED === "1";
 
 const LOCAL_USER: SessionUser = { id: "local-dev", email: "local@rom-lingo.local", name: "Local" };
 let localUser: Promise<SessionUser> | null = null;

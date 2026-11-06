@@ -126,6 +126,9 @@ function SiteNav() {
         </div>
 
         <div className="nav__links">
+          <Link to="/login" search={{ redirect: "/translate" }} className="nav__link">
+            Đăng nhập
+          </Link>
           <span
             className="ssr-badge ssr-badge--streaming"
             title="Streaming SSR active"

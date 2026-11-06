@@ -1,5 +1,6 @@
 // AI auto-translation panel: account + quote + live job progress (SSE).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { GoogleSignIn } from "~/components/GoogleSignIn";
 import { authClient } from "~/lib/auth-client";
 import { quote, type PlanItem } from "~/lib/job-plan";
 import type { ChunkResult } from "~/server/database/schema";
@@ -141,7 +142,16 @@ export function AiPanel({
   };
 
   if (account === undefined) return <section className="ai"><p className="ai__muted">Đang tải…</p></section>;
-  if (account === null) return <AuthBox onDone={refreshAccount} />;
+  if (account === null)
+    return (
+      <section className="ai">
+        <div className="ai__auth">
+          <strong>Dịch tự động (AI)</strong>
+          <span className="ai__muted">Cần đăng nhập để dùng.</span>
+          <GoogleSignIn onDone={refreshAccount} />
+        </div>
+      </section>
+    );
 
   const pct = job ? Math.round(((job.doneChunks + job.failedChunks) / Math.max(1, job.totalChunks)) * 100) : 0;
 
@@ -261,52 +271,4 @@ function fmtDuration(s: number) {
   if (s < 60) return `${s}s`;
   const m = Math.round(s / 60);
   return m < 60 ? `${m} phút` : `${Math.floor(m / 60)}h${String(m % 60).padStart(2, "0")}`;
-}
-
-function AuthBox({ onDone }: { onDone: () => void }) {
-  const [mode, setMode] = useState<"in" | "up">("in");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [name, setName] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    const r =
-      mode === "in"
-        ? await authClient.signIn.email({ email, password })
-        : await authClient.signUp.email({ email, password, name: name || email.split("@")[0] });
-    setBusy(false);
-    if (r.error) setError(r.error.message ?? "Lỗi đăng nhập");
-    else onDone();
-  };
-
-  return (
-    <section className="ai">
-      <form className="ai__auth" onSubmit={submit}>
-        <strong>{mode === "in" ? "Đăng nhập để dịch tự động" : "Tạo tài khoản"}</strong>
-        {mode === "up" && <input placeholder="Tên" value={name} onChange={(e) => setName(e.target.value)} />}
-        <input type="email" required placeholder="Email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-        <input
-          type="password"
-          required
-          minLength={8}
-          placeholder="Mật khẩu (≥ 8 ký tự)"
-          autoComplete={mode === "in" ? "current-password" : "new-password"}
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-        <button className="btn btn--primary btn--sm" disabled={busy}>
-          {mode === "in" ? "Đăng nhập" : "Đăng ký"}
-        </button>
-        <button type="button" className="ai__link" onClick={() => setMode(mode === "in" ? "up" : "in")}>
-          {mode === "in" ? "Chưa có tài khoản? Đăng ký" : "Đã có tài khoản? Đăng nhập"}
-        </button>
-        {error && <span className="ai__err">{error}</span>}
-      </form>
-    </section>
-  );
 }
