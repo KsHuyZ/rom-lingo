@@ -11,7 +11,6 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LoginRouteImport } from './routes/login'
-import { Route as TranslateRouteImport } from './routes/translate'
 import { Route as ApiAuthSplatRouteImport } from './routes/api.auth.$'
 import { Route as ApiJobsIdEventsRouteImport } from './routes/api.jobs.$id.events'
 
@@ -23,11 +22,6 @@ const IndexRoute = IndexRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const TranslateRoute = TranslateRouteImport.update({
-  id: '/translate',
-  path: '/translate',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
@@ -44,14 +38,12 @@ const ApiJobsIdEventsRoute = ApiJobsIdEventsRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/translate': typeof TranslateRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/jobs/$id/events': typeof ApiJobsIdEventsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/translate': typeof TranslateRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/jobs/$id/events': typeof ApiJobsIdEventsRoute
 }
@@ -59,29 +51,20 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
-  '/translate': typeof TranslateRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
   '/api/jobs/$id/events': typeof ApiJobsIdEventsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    '/' | '/login' | '/translate' | '/api/auth/$' | '/api/jobs/$id/events'
+  fullPaths: '/' | '/login' | '/api/auth/$' | '/api/jobs/$id/events'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/login' | '/translate' | '/api/auth/$' | '/api/jobs/$id/events'
-  id:
-    | '__root__'
-    | '/'
-    | '/login'
-    | '/translate'
-    | '/api/auth/$'
-    | '/api/jobs/$id/events'
+  to: '/' | '/login' | '/api/auth/$' | '/api/jobs/$id/events'
+  id: '__root__' | '/' | '/login' | '/api/auth/$' | '/api/jobs/$id/events'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   LoginRoute: typeof LoginRoute
-  TranslateRoute: typeof TranslateRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiJobsIdEventsRoute: typeof ApiJobsIdEventsRoute
 }
@@ -100,13 +83,6 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/translate': {
-      id: '/translate'
-      path: '/translate'
-      fullPath: '/translate'
-      preLoaderRoute: typeof TranslateRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/auth/$': {
@@ -129,7 +105,6 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   LoginRoute: LoginRoute,
-  TranslateRoute: TranslateRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiJobsIdEventsRoute: ApiJobsIdEventsRoute,
 }

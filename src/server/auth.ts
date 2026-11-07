@@ -4,8 +4,6 @@ import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { oneTap } from "better-auth/plugins";
 import { db } from "./database/client";
 import * as schema from "./database/schema";
-import { grantSignupCredits } from "./credits";
-import { creditLedger } from "./database/schema";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -17,22 +15,12 @@ export const auth = betterAuth({
       verification: schema.verification,
     },
   }),
-  // Google-only sign-in: one real Google account per user, so throwaway-email
-  // signups (and the free credits they farm) are no longer trivial.
+  // Google-only sign-in: one real Google account per user.
   emailAndPassword: { enabled: false },
   socialProviders: {
     google: {
       clientId: process.env.GOOGLE_CLIENT_ID ?? "",
       clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
-    },
-  },
-  databaseHooks: {
-    user: {
-      create: {
-        after: async (u) => {
-          await grantSignupCredits(u.id);
-        },
-      },
     },
   },
   // must stay last: copies Set-Cookie into TanStack Start's response
@@ -43,7 +31,7 @@ export type SessionUser = { id: string; email: string; name: string };
 
 /**
  * Login is on by default. Dev escape hatch: set AUTH_DISABLED=1 and every request runs as one
- * fixed local user with a huge credit grant.
+ * fixed local user.
  */
 export const AUTH_DISABLED = process.env.AUTH_DISABLED === "1";
 
@@ -56,11 +44,6 @@ function ensureLocalUser(): Promise<SessionUser> {
     await db
       .insert(schema.user)
       .values({ ...LOCAL_USER, emailVerified: true, createdAt: now, updatedAt: now })
-      .onConflictDoNothing();
-    // unique payment_ref makes the grant happen once
-    await db
-      .insert(creditLedger)
-      .values({ userId: LOCAL_USER.id, delta: 1_000_000_000, kind: "topup", paymentRef: "local-dev-grant", note: "auth disabled" })
       .onConflictDoNothing();
     return LOCAL_USER;
   })().catch((e) => {

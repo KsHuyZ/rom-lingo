@@ -24,6 +24,52 @@ function extract() {
   post({ type: "entries", entries, ms: Math.round(performance.now() - t0) });
 }
 
+
+type Wrapper = {
+  p: ViProfile;
+  slots: Map<string, number> | null;
+  target: CharMap;
+  m: ReturnType<typeof makeMeasure>;
+  m0: ReturnType<typeof makeMeasure>;
+  inScript: (o: number) => boolean;
+  byId: Map<string, Entry>;
+};
+
+/** Pixel measures for laying dialogue out in the message box; null when the ROM has no profile. */
+function makeWrapper(viFont: boolean): Wrapper | null {
+  if (!rom || !viProfile) return null;
+  const p = viProfile;
+  let slots: Map<string, number> | null = null;
+  let target = cm;
+  if (viFont) {
+    slots = viSlots(cm, p);
+    target = viTargetCharMap(p, slots);
+  }
+  const spec = p.fonts[0];
+  const widths = slots ? measureWidths(rom, p.fonts, cm, slots) : rom.slice(spec.widths, spec.widths + 256);
+  return {
+    p,
+    slots,
+    target,
+    m: makeMeasure(widths, target, p.tagWidths),
+    m0: makeMeasure(widths, target, {}),
+    inScript: (o) => p.scrollRegions.some(([a, b]) => o >= a && o < b),
+    byId: new Map(entries.map((e) => [e.id, e])),
+  };
+}
+
+/** Wrapped text, null when not dialogue / empty, or the WrapError that blocks it. */
+function wrapEntry(w: Wrapper, id: string, tr: string): string | null | WrapError {
+  const e = w.byId.get(id);
+  if (!e || e.kind !== "dialogue" || !tr.trim()) return null;
+  try {
+    return wrapDialogue(e.text, tr, w.p.box, w.m, w.m0, w.inScript(e.offset));
+  } catch (err) {
+    if (err instanceof WrapError) return err;
+    throw err;
+  }
+}
+
 self.onmessage = (ev: MessageEvent<WorkerRequest>) => {
   const msg = ev.data;
   try {
@@ -42,38 +88,40 @@ self.onmessage = (ev: MessageEvent<WorkerRequest>) => {
         if (rom) extract();
         break;
       }
+      case "wrapCheck": {
+        const w = rom ? makeWrapper(!!msg.viFont) : null;
+        const bad: { id: string; text: string; message: string }[] = [];
+        if (w) {
+          for (const it of msg.items) {
+            const text = msg.viFont ? it.text.normalize("NFC") : it.text;
+            const r = wrapEntry(w, it.id, text);
+            if (r !== null && typeof r !== "string") bad.push({ id: it.id, text: it.text, message: r.message });
+          }
+        }
+        post({ type: "wrapChecked", tag: msg.tag, bad });
+        break;
+      }
       case "build": {
         if (!rom) throw new Error("Chưa nạp ROM");
-        let target = cm;
+        if (msg.viFont && !viProfile) throw new Error("Chưa hỗ trợ font có dấu cho ROM này");
+        const w = makeWrapper(!!msg.viFont);
+        const target = w?.target ?? cm;
         let translations = msg.translations;
-        let slots: Map<string, number> | null = null;
         if (msg.viFont) {
-          if (!viProfile) throw new Error("Chưa hỗ trợ font có dấu cho ROM này");
-          slots = viSlots(cm, viProfile);
-          target = viTargetCharMap(viProfile, slots);
           // typed/pasted text may be NFD; the charmap holds precomposed letters
           translations = Object.fromEntries(Object.entries(translations).map(([k, v]) => [k, v.normalize("NFC")]));
         }
         // Re-wrap dialogue to the message box by pixel width. A line that cannot fit is
         // reported and left in English, like Vietrom's "wrap" skip.
         const wrapIssues: { id: string; message: string }[] = [];
-        if (viProfile) {
-          const p = viProfile;
-          const spec = p.fonts[0];
-          const widths = slots ? measureWidths(rom, p.fonts, cm, slots) : rom.slice(spec.widths, spec.widths + 256);
-          const m = makeMeasure(widths, target, p.tagWidths);
-          const m0 = makeMeasure(widths, target, {});
-          const inScript = (o: number) => p.scrollRegions.some(([a, b]) => o >= a && o < b);
-          const byId = new Map(entries.map((e) => [e.id, e]));
+        if (w) {
           translations = { ...translations };
           for (const [id, tr] of Object.entries(translations)) {
-            const e = byId.get(id);
-            if (!e || e.kind !== "dialogue" || !tr.trim()) continue;
-            try {
-              translations[id] = wrapDialogue(e.text, tr, p.box, m, m0, inScript(e.offset));
-            } catch (err) {
-              if (!(err instanceof WrapError)) throw err;
-              wrapIssues.push({ id, message: err.message });
+            const r = wrapEntry(w, id, tr);
+            if (r === null) continue;
+            if (typeof r === "string") translations[id] = r;
+            else {
+              wrapIssues.push({ id, message: r.message });
               delete translations[id];
             }
           }
@@ -81,8 +129,8 @@ self.onmessage = (ev: MessageEvent<WorkerRequest>) => {
         const res = buildRom(rom, entries, translations, target);
         res.issues.push(...wrapIssues);
         // like Vietrom: the font is only touched when at least one line was written
-        const fontApplied = !!slots && res.written > 0;
-        if (fontApplied) applyFont(res.rom, rom, viProfile!.fonts, cm, slots!);
+        const fontApplied = !!w?.slots && res.written > 0;
+        if (fontApplied) applyFont(res.rom, rom, viProfile!.fonts, cm, w!.slots!);
         const bps = createBps(rom, res.rom);
         post(
           {

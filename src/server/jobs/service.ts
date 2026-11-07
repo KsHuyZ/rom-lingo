@@ -8,7 +8,6 @@ import {
   type ChunkResult,
   type JobStatus,
 } from "../database/schema";
-import { CREDITS_PER_1K_CHARS, lockUser, release, reserve } from "../credits";
 import { jobEvents, type JobSnapshot } from "./events";
 
 
@@ -25,8 +24,6 @@ export function toSnapshot(j: JobRow): JobSnapshot {
     doneChunks: j.doneChunks,
     failedChunks: j.failedChunks,
     fallbackChunks: j.fallbackChunks,
-    creditsReserved: j.creditsReserved,
-    creditsUsed: j.creditsUsed,
     error: j.error,
     createdAt: j.createdAt.toISOString(),
   };
@@ -38,13 +35,12 @@ export async function createJob(
   userId: string,
   input: { gameCode: string; romCrc32: string; diacritics: boolean; items: ChunkItem[] },
 ) {
-  const plan = planChunks(input.items as PlanItem[], CREDITS_PER_1K_CHARS);
-  const credits = plan.reduce((n, c) => n + c.cost, 0);
+  const plan = planChunks(input.items as PlanItem[]);
 
   const job = await db.transaction(async (tx) => {
     // lock first so two concurrent requests cannot both pass the check below
-    await lockUser(tx, userId);
-    // one active job per ROM per user: avoids double-paying for the same text
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${"jobs:" + userId}))`);
+    // one active job per ROM per user: avoids duplicate work for the same text
     const existing = await tx
       .select({ id: translationJobs.id })
       .from(translationJobs)
@@ -67,10 +63,8 @@ export async function createJob(
         options: { diacritics: input.diacritics },
         totalStrings: input.items.length,
         totalChunks: plan.length,
-        creditsReserved: credits,
       })
       .returning();
-    await reserve(tx, userId, j.id, credits);
     // insert in slices: one huge VALUES list can exceed parameter limits
     for (let i = 0; i < plan.length; i += 100) {
       await tx.insert(translationChunks).values(
@@ -79,7 +73,6 @@ export async function createJob(
           idx: i + k,
           items: c.items,
           chars: c.chars,
-          cost: c.cost,
         })),
       );
     }
@@ -123,8 +116,8 @@ export async function doneResults(jobId: string): Promise<ChunkResult[]> {
 }
 
 /**
- * Close the job once no chunk is pending/running: set final status and return
- * unused credits exactly once (guarded by the `released` flag).
+ * Close the job once no chunk is pending/running and set its final status
+ * exactly once (guarded by the `released` flag).
  */
 export async function finalizeIfDone(tx: Tx, jobId: string): Promise<JobRow | null> {
   const [open] = await tx
@@ -145,7 +138,6 @@ export async function finalizeIfDone(tx: Tx, jobId: string): Promise<JobRow | nu
     .where(and(eq(translationJobs.id, jobId), eq(translationJobs.released, false)))
     .returning();
   if (!j) return null; // already finalized
-  await release(tx, j.userId, j.id, j.creditsReserved - j.creditsUsed);
   return j;
 }
 
@@ -169,7 +161,7 @@ export async function controlJob(jobId: string, userId: string, action: "pause" 
         .where(eq(translationJobs.id, jobId)).returning();
       return u;
     }
-    // cancel: drop pending chunks; a running chunk finishes and is still charged
+    // cancel: drop pending chunks; a running chunk finishes normally
     await tx.update(translationChunks).set({ status: "cancelled", updatedAt: sql`now()` })
       .where(and(eq(translationChunks.jobId, jobId), eq(translationChunks.status, "pending")));
     const [u] = await tx.update(translationJobs).set({ status: "cancelled", updatedAt: sql`now()` })

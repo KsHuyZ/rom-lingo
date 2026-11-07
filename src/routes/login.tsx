@@ -8,7 +8,7 @@ import "~/styles/login.css";
 
 /** Only same-site absolute paths: blocks open redirects like `//evil.com` or `https://…`. */
 function safeRedirect(v: unknown): string {
-  return typeof v === "string" && /^\/(?![/\\])/.test(v) ? v : "/translate";
+  return typeof v === "string" && /^\/(?![/\\])/.test(v) ? v : "/";
 }
 
 export const Route = createFileRoute("/login")({
@@ -46,7 +46,7 @@ function LoginPage() {
           <>
             <h1 className="login__title">Đăng nhập</h1>
             <p className="login__sub">
-              Đăng nhập bằng Google để dùng dịch tự động bằng AI. Tài khoản mới nhận sẵn credit dùng thử.
+              Đăng nhập bằng Google để dùng dịch tự động bằng AI.
             </p>
             <GoogleSignIn onDone={go} prompt={false} />
           </>

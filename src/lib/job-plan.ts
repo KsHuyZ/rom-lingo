@@ -1,6 +1,5 @@
-// Chunk planning + pricing, shared so the browser can quote the exact price
-// the server will reserve.
-import { billableChars, chunkCost } from "./gba/tokens";
+// Chunk planning, shared so the browser can preview exactly what the server will run.
+import { billableChars } from "./gba/tokens";
 
 export type PlanItem = {
   id: string;
@@ -8,7 +7,26 @@ export type PlanItem = {
   text: string;
   capacity: number;
   fixed: boolean;
+  /** dialogue in a fixed window: most lines a page may take (set when the original shows it) */
+  maxLines?: number;
+  /** characters of the widest original line, a rough width budget per line */
+  cols?: number;
+  /** a rejected earlier answer and why, so the model corrects it instead of starting over */
+  retry?: { prev: string; err: string };
 };
+
+const CTRL = /\{[^}]*\}|\\[nlp]|\n/g;
+
+/**
+ * Window limits implied by a dialogue's original: three or more lines without `\l` means a
+ * fixed window of that many lines (e.g. the intro text); shorter ones may scroll, so no limit.
+ */
+export function dialogueLimits(text: string): { maxLines?: number; cols?: number } {
+  const lines = Math.max(...text.split("\\p").map((p) => (p.match(/\\n|\\l|\n/g)?.length ?? 0) + 1));
+  if (text.includes("\\l") || lines < 3) return {};
+  const cols = Math.max(...text.split(/\\[nlp]|\n/).map((l) => [...l.replace(CTRL, "")].length));
+  return { maxLines: lines, cols: Math.max(1, cols) };
+}
 
 const CHUNK_SIZE = { dialogue: 40, names: 80 };
 
@@ -16,7 +34,7 @@ const CHUNK_SIZE = { dialogue: 40, names: 80 };
 export const LIMITS = { maxItems: 20_000, maxTextLen: 2_048, maxTotalChars: 2_000_000 };
 
 /** Dialogue keeps ROM order so neighbouring lines give the model context. */
-export function planChunks<T extends PlanItem>(items: T[], creditsPer1k: number) {
+export function planChunks<T extends PlanItem>(items: T[]) {
   const dialogue = items.filter((i) => i.kind === "dialogue");
   const names = items.filter((i) => i.kind !== "dialogue");
   const chunks: T[][] = [];
@@ -25,15 +43,14 @@ export function planChunks<T extends PlanItem>(items: T[], creditsPer1k: number)
     chunks.push(dialogue.slice(i, i + CHUNK_SIZE.dialogue));
   return chunks.map((c) => {
     const chars = c.reduce((n, it) => n + billableChars(it.text), 0);
-    return { items: c, chars, cost: chunkCost(chars, creditsPer1k) };
+    return { items: c, chars };
   });
 }
 
-export function quote(items: PlanItem[], creditsPer1k: number) {
-  const plan = planChunks(items, creditsPer1k);
+export function quote(items: PlanItem[]) {
+  const plan = planChunks(items);
   return {
     chunks: plan.length,
     chars: plan.reduce((n, c) => n + c.chars, 0),
-    credits: plan.reduce((n, c) => n + c.cost, 0),
   };
 }

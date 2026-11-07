@@ -73,32 +73,6 @@ export const verification = pgTable("verification", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
-// ---------------------------------------------------------------- credits
-
-/**
- * Append-only ledger. Balance = SUM(delta). Never UPDATE or DELETE rows.
- *   signup  +N   free credits on registration
- *   topup   +N   payment (payment_ref is UNIQUE → webhook replays are no-ops)
- *   reserve −N   held when a job is created
- *   release +N   unused part of a reservation returned when the job ends
- */
-export const creditLedger = pgTable(
-  "credit_ledger",
-  {
-    id: bigserial("id", { mode: "number" }).primaryKey(),
-    userId: text("user_id")
-      .notNull()
-      .references(() => user.id, { onDelete: "cascade" }),
-    delta: integer("delta").notNull(),
-    kind: text("kind", { enum: ["signup", "topup", "reserve", "release", "adjust"] }).notNull(),
-    jobId: uuid("job_id"),
-    paymentRef: text("payment_ref").unique(),
-    note: text("note"),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  },
-  (t) => [index("credit_ledger_user_idx").on(t.userId)],
-);
-
 // ---------------------------------------------------------------- jobs
 
 export const JOB_STATUSES = ["queued", "running", "paused", "done", "failed", "cancelled"] as const;
@@ -122,8 +96,6 @@ export const translationJobs = pgTable(
     doneChunks: integer("done_chunks").notNull().default(0),
     failedChunks: integer("failed_chunks").notNull().default(0),
     fallbackChunks: integer("fallback_chunks").notNull().default(0),
-    creditsReserved: integer("credits_reserved").notNull(),
-    creditsUsed: integer("credits_used").notNull().default(0),
     released: boolean("released").notNull().default(false),
     error: text("error"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -140,6 +112,9 @@ export type ChunkItem = {
   /** byte budget incl. terminator — only enforced for fixed table slots */
   capacity: number;
   fixed: boolean;
+  maxLines?: number;
+  cols?: number;
+  retry?: { prev: string; err: string };
 };
 
 export type ChunkResult = {
@@ -164,7 +139,6 @@ export const translationChunks = pgTable(
     items: jsonb("items").$type<ChunkItem[]>().notNull(),
     results: jsonb("results").$type<ChunkResult[]>(),
     chars: integer("chars").notNull(),
-    cost: integer("cost").notNull(),
     provider: text("provider"),
     error: text("error"),
     availableAt: timestamp("available_at", { withTimezone: true }).notNull().defaultNow(),

@@ -14,8 +14,6 @@ export type JobSnapshot = {
   doneChunks: number;
   failedChunks: number;
   fallbackChunks: number;
-  creditsReserved: number;
-  creditsUsed: number;
   error: string | null;
   createdAt: string;
 };

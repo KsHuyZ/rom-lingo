@@ -185,8 +185,15 @@ export function wrapDialogue(
 ): string {
   const lines = lineCount(original);
   const canScroll = !!box.scroll && (original.includes("\\l") || (scrolls && lines < 3));
+  // Proof of the window's width. Lines with a {F7:..} value buffer (counts, scores) are measured
+  // at the same worst-case tag width the translation gets: those slots hold short numbers, so
+  // the original's own layout is the better yardstick (the trainer card line "BATTLES: {F7:00}
+  // WINS ..." would otherwise look 70 px wider than its window and nothing could fit).
+  const proof = Math.max(
+    ...original.split(/\\[nlp]|\n/).map((ln) => (/\{F[789]:/i.test(ln) ? m(ln) : mOriginal(ln))),
+  );
   const eff: BoxSpec = {
-    width: Math.max(box.width, widest(original, mOriginal)),
+    width: Math.max(box.width, proof),
     lines: canScroll ? box.lines : Math.max(box.lines, lines),
     scroll: canScroll,
   };

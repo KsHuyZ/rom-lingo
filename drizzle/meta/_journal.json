@@ -15,6 +15,13 @@
       "when": 1793898000689,
       "tag": "0001_enable_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794031984935,
+      "tag": "0002_drop_credits",
+      "breakpoints": true
     }
   ]
 }

@@ -1,11 +1,10 @@
 // AI auto-translation panel: account + quote + live job progress (SSE).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GoogleSignIn } from "~/components/GoogleSignIn";
-import { authClient } from "~/lib/auth-client";
 import { quote, type PlanItem } from "~/lib/job-plan";
 import type { ChunkResult } from "~/server/database/schema";
 import type { JobEvent, JobSnapshot } from "~/server/jobs/events";
-import { devTopUp, findJob, getAccount, jobControl, startJob } from "~/server/jobs/fns";
+import { findJob, getAccount, jobControl, startJob } from "~/server/jobs/fns";
 
 type Account = Awaited<ReturnType<typeof getAccount>>;
 
@@ -34,6 +33,16 @@ export function AiPanel({
   diacritics,
   onDiacritics,
   fontReady,
+  aiCount,
+  flaggedCount,
+  onReset,
+  onRecheck,
+  onFix,
+  onCheckWrap,
+  junkAiCount,
+  onPurgeJunk,
+  autoRetry,
+  onAutoRetryStarted,
 }: {
   gameCode: string;
   romCrc32: string;
@@ -44,6 +53,23 @@ export function AiPanel({
   onDiacritics: (v: boolean) => void;
   /** the ROM has a Vietnamese font profile: the build adds the glyphs itself */
   fontReady: boolean;
+  /** lines currently holding an AI translation / an AI suggestion flagged for review */
+  aiCount: number;
+  flaggedCount: number;
+  /** drop old AI output so the lines become translatable again */
+  onReset: (scope: "flagged" | "all") => void;
+  /** re-validate saved AI translations with the current rules; returns how many now fail */
+  onRecheck: () => number;
+  /** auto-fix flagged lines that only fail on punctuation (no AI call); returns how many were fixed */
+  onFix: () => number;
+  /** lay every translated dialogue line out in its message box, as the build does */
+  onCheckWrap: () => void;
+  /** AI translations / suggestions left on junk strings by older jobs */
+  junkAiCount: number;
+  onPurgeJunk: () => void;
+  /** lines whose AI answer did not fit its message box, with the rejection to correct */
+  autoRetry: PlanItem[];
+  onAutoRetryStarted: (ids: string[]) => void;
 }) {
   const [account, setAccount] = useState<Account | undefined>(undefined);
   const [job, setJob] = useState<JobSnapshot | null>(null);
@@ -63,7 +89,10 @@ export function AiPanel({
   const onResultsRef = useRef(onResults);
   onResultsRef.current = onResults;
 
-  const refreshAccount = useCallback(() => getAccount().then(setAccount), []);
+  const refreshAccount = useCallback(
+    () => getAccount().then(setAccount),
+    [],
+  );
   useEffect(() => {
     refreshAccount();
   }, [refreshAccount]);
@@ -105,39 +134,56 @@ export function AiPanel({
       if (!ACTIVE.has(e.job.status)) {
         es.close();
         setEta(null);
-        refreshAccount(); // unused credits were released
       }
     };
     return () => es.close();
-  }, [jobId, live, refreshAccount]);
+  }, [jobId, live]);
 
   const q = useMemo(
-    () => (account ? quote(candidates, account.creditsPer1k) : null),
+    () => (account ? quote(candidates) : null),
     [candidates, account],
   );
 
-  const start = async () => {
+  const run = async (items: PlanItem[]) => {
     setBusy(true);
     setError(null);
     arrivals.current = [];
     try {
       const r = await startJob({
-        data: { gameCode, romCrc32, diacritics, items: candidates },
+        data: { gameCode, romCrc32, diacritics, items },
       });
       if (r.ok) {
         setJob(r.job);
         refreshAccount();
-      } else setError(r.error);
+        return true;
+      }
+      setError(r.error);
     } catch (e) {
       setError((e as Error).message);
     } finally {
       setBusy(false);
     }
+    return false;
   };
+  const start = () => run(candidates);
+
+  // Lines the browser found do not fit their message box are sent back to the model once the
+  // current job is over, with the exact layout error. The queue is capped per line upstream.
+  const [autoOn, setAutoOn] = useState(true);
+  const retrying = useRef(false);
+  useEffect(() => {
+    if (!autoOn || !account || live || busy || retrying.current || !autoRetry.length) return;
+    retrying.current = true;
+    const ids = autoRetry.map((i) => i.id);
+    run(autoRetry).then((ok) => {
+      if (ok) onAutoRetryStarted(ids);
+      retrying.current = false;
+    });
+  }, [autoOn, account, live, busy, autoRetry]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const control = async (action: "pause" | "resume" | "cancel") => {
     if (!job) return;
-    if (action === "cancel" && !confirm("Huỷ job? Phần đã dịch được giữ lại, credit chưa dùng sẽ được hoàn.")) return;
+    if (action === "cancel" && !confirm("Huỷ job? Phần đã dịch được giữ lại.")) return;
     setJob(await jobControl({ data: { jobId: job.id, action } }));
   };
 
@@ -159,21 +205,6 @@ export function AiPanel({
     <section className="ai">
       <div className="ai__head">
         <strong>Dịch tự động (AI)</strong>
-        <span className="ai__muted">
-          {!account.authDisabled && (
-            <>
-              {account.user.email} · <b>{account.balance.toLocaleString()}</b> credit
-              {account.devTopUp && (
-                <button className="ai__link" onClick={() => devTopUp().then(refreshAccount)}>
-                  +1000 (dev)
-                </button>
-              )}
-              <button className="ai__link" onClick={() => authClient.signOut().then(refreshAccount)}>
-                Đăng xuất
-              </button>
-            </>
-          )}
-        </span>
       </div>
 
       {job && (live || job.status !== "done" || job.doneStrings > 0) && (
@@ -200,9 +231,8 @@ export function AiPanel({
           <div className="ai__muted">
             {provider && <>Nguồn: {provider} · </>}
             {job.fallbackChunks > 0 && <>{job.fallbackChunks} chunk qua dự phòng · </>}
-            Credit: {job.creditsUsed} / giữ chỗ {job.creditsReserved}
             {job.flaggedStrings > 0 && <> · <span className="ai__warn">⚠ {job.flaggedStrings} chuỗi cần xem lại</span></>}
-            {job.failedChunks > 0 && <> · <span className="ai__err">{job.failedChunks} chunk lỗi (không tính phí)</span></>}
+            {job.failedChunks > 0 && <> · <span className="ai__err">{job.failedChunks} chunk lỗi</span></>}
           </div>
           {job.error && !live && <div className="ai__err">{job.error}</div>}
         </div>
@@ -228,14 +258,17 @@ export function AiPanel({
                 {label} ({(perKind[k] ?? 0).toLocaleString()})
               </label>
             ))}
-            <span className="ai__muted" title="Tên Pokémon luôn giữ tiếng Anh">· Tên Pokémon: giữ nguyên</span>
           </span>
           <span>
             {candidates.length.toLocaleString()} chuỗi chưa dịch đã chọn
             {q && q.chunks > 0 && (
-              <> · {q.chars.toLocaleString()} ký tự{!account.authDisabled && <> · <b>{q.credits.toLocaleString()} credit</b></>}</>
+              <> · {q.chars.toLocaleString()} ký tự</>
             )}
           </span>
+          <label className="tl__check" title="Câu AI dịch xong mà không vừa ô thoại được tự gửi lại cho AI kèm lỗi cụ thể, tối đa 2 lần mỗi câu">
+            <input type="checkbox" checked={autoOn} onChange={(e) => setAutoOn(e.target.checked)} />
+            Tự dịch lại câu không vừa ô thoại
+          </label>
           <label className="tl__check">
             <input type="checkbox" checked={diacritics} onChange={(e) => onDiacritics(e.target.checked)} />
             {fontReady ? "Có dấu (app tự nhúng font khi build)" : "Có dấu (cần font đã hack)"}
@@ -252,14 +285,77 @@ export function AiPanel({
               Nạp kết quả job trước ({lastJob.doneStrings.toLocaleString()} chuỗi)
             </button>
           )}
+          {junkAiCount > 0 && (
+            <button
+              className="ai__link"
+              title="Gỡ bản dịch AI nằm trên chuỗi rác (do job cũ). Build vốn đã bỏ qua chúng; câu bạn tự dịch không bị đụng."
+              onClick={() => {
+                if (confirm(`Gỡ ${junkAiCount} bản dịch/gợi ý AI trên chuỗi rác?`)) onPurgeJunk();
+              }}
+            >
+              Dọn {junkAiCount.toLocaleString()} bản dịch AI trên chuỗi rác
+            </button>
+          )}
+          <button
+            className="ai__link"
+            title="Kiểm tra mọi câu thoại đã dịch có vừa ô thoại không (cùng bộ kiểm tra của build). Câu AI không vừa chuyển sang 'cần xem lại'; câu bạn tự dịch được đánh dấu lỗi."
+            onClick={onCheckWrap}
+          >
+            Kiểm tra vừa ô thoại
+          </button>
+          {aiCount > 0 && (
+            <button
+              className="ai__link"
+              title="Chạy lại bộ kiểm tra hiện tại trên các bản dịch AI đã lưu; câu không đạt chuyển sang 'cần xem lại'"
+              onClick={() => {
+                const n = onRecheck();
+                alert(n ? `${n} bản dịch AI không đạt, đã chuyển sang "cần xem lại". Bấm "Làm lại" để dịch lại.` : "Tất cả bản dịch AI đều đạt.");
+              }}
+            >
+              Kiểm tra lại bản dịch AI
+            </button>
+          )}
+          {flaggedCount > 0 && (
+            <button
+              className="ai__link"
+              title="Sửa tại chỗ các gợi ý lỗi chỉ vì dấu câu font không có (— thành -), không gọi AI. Bỏ qua chuỗi rác."
+              onClick={() => {
+                const n = onFix();
+                alert(n ? `Đã tự sửa ${n} câu.` : "Không có câu nào sửa được tự động.");
+              }}
+            >
+              Tự sửa lỗi dấu câu
+            </button>
+          )}
+          {flaggedCount > 0 && (
+            <button
+              className="ai__link"
+              title="Bỏ các gợi ý AI đang bị đánh dấu lỗi để dịch lại bằng AI (không đụng tới câu đã dịch)"
+              onClick={() => {
+                if (confirm(`Bỏ ${flaggedCount} gợi ý lỗi để dịch lại?`)) onReset("flagged");
+              }}
+            >
+              Làm lại {flaggedCount.toLocaleString()} câu lỗi
+            </button>
+          )}
+          {aiCount > 0 && (
+            <button
+              className="ai__link"
+              title="Xoá mọi bản dịch do AI tạo (câu bạn đã tự sửa được giữ lại) để dịch lại từ đầu"
+              onClick={() => {
+                if (confirm(`Xoá ${aiCount} bản dịch AI (cả câu lỗi) để dịch lại? Câu bạn đã sửa tay được giữ.`)) onReset("all");
+              }}
+            >
+              Xoá {aiCount.toLocaleString()} bản dịch AI
+            </button>
+          )}
           <button
             className="btn btn--primary btn--sm"
-            disabled={busy || !candidates.length || (q ? q.credits > account.balance : true)}
+            disabled={busy || !candidates.length}
             onClick={start}
           >
             {busy ? "Đang tạo job…" : "Dịch tự động"}
           </button>
-          {q && q.credits > account.balance && <span className="ai__err">Không đủ credit</span>}
         </div>
       )}
       {error && <div className="ai__err">{error}</div>}

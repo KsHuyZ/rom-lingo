@@ -19,7 +19,6 @@ type Claimed = {
   idx: number;
   attempts: number;
   items: ChunkItem[];
-  cost: number;
   diacritics: boolean;
 };
 
@@ -41,7 +40,7 @@ async function claimChunk(): Promise<Claimed | null> {
        set status = 'running', locked_at = now(), attempts = c.attempts + 1, updated_at = now()
       from next, translation_jobs j
      where c.id = next.id and j.id = c.job_id
-    returning c.id, c.job_id, c.idx, c.attempts, c.items, c.cost, (j.options->>'diacritics')::boolean as diacritics
+    returning c.id, c.job_id, c.idx, c.attempts, c.items, (j.options->>'diacritics')::boolean as diacritics
   `);
   const row = (rows as unknown as Claimed[])[0];
   if (!row) return null;
@@ -102,7 +101,6 @@ async function processChunk(c: Claimed) {
           doneChunks: sql`${translationJobs.doneChunks} + 1`,
           doneStrings: sql`${translationJobs.doneStrings} + ${c.items.length}`,
           flaggedStrings: sql`${translationJobs.flaggedStrings} + ${flagged}`,
-          creditsUsed: sql`${translationJobs.creditsUsed} + ${c.cost}`,
           fallbackChunks: sql`${translationJobs.fallbackChunks} + ${outcome.provider.name === "fallback" ? 1 : 0}`,
           updatedAt: sql`now()`,
         })
@@ -119,7 +117,7 @@ async function processChunk(c: Claimed) {
         })
         .where(eq(translationChunks.id, c.id));
     } else {
-      // give up on this chunk: it is not charged (reservation released at finalize)
+      // give up on this chunk: mark it failed
       await tx
         .update(translationChunks)
         .set({ status: "failed", error: error?.message ?? "unknown", updatedAt: sql`now()` })

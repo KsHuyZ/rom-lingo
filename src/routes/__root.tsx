@@ -1,12 +1,7 @@
 // src/routes/__root.tsx
-// Root route: full HTML document shell (SSR) + top nav.
-import {
-  createRootRouteWithContext,
-  Link,
-  Outlet,
-  HeadContent,
-  Scripts,
-} from "@tanstack/react-router";
+// Root route: HTML document shell only. Header + page outlet.
+import { createRootRouteWithContext, Outlet, HeadContent, Scripts } from "@tanstack/react-router";
+import { SiteHeader } from "~/components/SiteHeader";
 import "../global.css";
 
 export const Route = createRootRouteWithContext<object>()({
@@ -19,9 +14,9 @@ export const Route = createRootRouteWithContext<object>()({
         name: "description",
         content: "Trích xuất và dịch text ROM Pokémon GBA ngay trên trình duyệt.",
       },
-      { name: "theme-color", content: "#0d0f14" },
+      { name: "theme-color", content: "#2db5a6" },
     ],
-    links: [{ rel: "icon", type: "image/svg+xml", href: "/favicon.svg" }],
+    links: [{ rel: "icon", type: "image/png", href: "/logo.png" }],
   }),
   component: RootDocument,
 });
@@ -33,31 +28,7 @@ function RootDocument() {
         <HeadContent />
       </head>
       <body>
-        <nav className="nav" aria-label="Primary navigation">
-          <div className="container nav__inner">
-            <Link to="/translate" className="nav__brand" aria-label="RomLingo">
-              <span className="brand-dot" aria-hidden="true" />
-              RomLingo
-            </Link>
-            <div className="nav__links">
-              <Link
-                to="/translate"
-                className="nav__link"
-                activeProps={{ className: "nav__link active" }}
-              >
-                Dịch ROM
-              </Link>
-              <Link
-                to="/login"
-                search={{ redirect: "/translate" }}
-                className="nav__link"
-                activeProps={{ className: "nav__link active" }}
-              >
-                Đăng nhập
-              </Link>
-            </div>
-          </div>
-        </nav>
+        <SiteHeader />
         <main id="main-content">
           <Outlet />
         </main>

@@ -1,65 +1,21 @@
-.login {
-  display: flex;
-  justify-content: center;
-  padding: var(--space-8) 0;
-}
+.login { display: flex; justify-content: center; padding: var(--space-8) 0; }
 .login__card {
   width: 100%;
-  max-width: 400px;
+  max-width: 420px;
   padding: var(--space-6);
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
+  background: var(--lcd-3);
+  color: var(--lcd-0);
+  border: 4px solid var(--bezel);
+  box-shadow: 6px 6px 0 var(--bezel);
   display: flex;
   flex-direction: column;
   gap: var(--space-4);
 }
-.login__card form {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-.login__title { margin: 0; }
-.login__sub { margin: 0; color: var(--color-text-secondary); }
-.login__field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 0.875rem;
-  color: var(--color-text-secondary);
-}
-.login__field input {
-  padding: 10px 12px;
-  background: var(--color-surface-2);
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  font: inherit;
-}
-.login__field input:focus {
-  outline: 2px solid var(--color-brand);
-  outline-offset: 1px;
-}
-.login__submit { width: 100%; justify-content: center; }
-.login__err {
-  padding: 8px 12px;
-  color: var(--color-danger);
-  border: 1px solid var(--color-danger);
-  border-radius: var(--radius-md);
-  font-size: 0.875rem;
-}
-.login__switch {
-  padding: 0;
-  background: none;
-  border: 0;
-  color: var(--color-brand);
-  font: inherit;
-  cursor: pointer;
-  text-align: center;
-}
-.login__switch:hover { text-decoration: underline; }
-.login__back {
-  text-align: center;
-  color: var(--color-text-muted);
-  font-size: 0.875rem;
-}
+.login__title { font-family: var(--font-pixel); font-size: 0.9rem; line-height: 1.6; text-transform: uppercase; }
+.login__sub { color: var(--lcd-1); font-size: 1.1rem; }
+.login__submit { width: 100%; }
+.login__err { padding: var(--space-2) var(--space-3); color: var(--danger); border: 3px solid var(--danger); }
+.login__switch { color: var(--lcd-0); text-decoration: underline; text-align: center; font-size: 1.1rem; }
+.login__switch:hover { background: var(--lcd-0); color: var(--lcd-3); text-decoration: none; }
+.login__back { text-align: center; color: var(--lcd-1); font-size: 1.05rem; }
+.login__back:hover { color: var(--lcd-0); text-decoration: underline; }

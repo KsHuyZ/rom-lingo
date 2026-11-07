@@ -196,6 +196,51 @@ function looksLikeText(rom: Uint8Array, t: number, cls: Uint8Array): boolean {
   return false;
 }
 
+// ---- event-script pointers. The script bytecode packs a 4-byte pointer right after its opcode,
+// so most of them sit at unaligned addresses that the word-aligned scan above can never see
+// (every NPC line behind `msgbox`). Port of Vietrom's gen3 plugin: only these command shapes count.
+const TB_TEXTS = [2, 2, 2, 1, 3, 2, 3, 3, 3, 2]; // trainerbattle type -> leading text pointers
+const LOADWORD_NEXT = new Set([0x09, 0x1a]); // callstd, setorcopyvar
+const MESSAGE_NEXT = new Set([0x66, 0x02, 0x03, 0x04, 0x32]); // waitmessage, end, return, call, waitfanfare
+
+/** Pointer value at p as a ROM offset, or -1 when it is not a pointer into the ROM. */
+function ptrAt(rom: Uint8Array, p: number): number {
+  if (p + 4 > rom.length || (rom[p + 3] !== 0x08 && rom[p + 3] !== 0x09)) return -1;
+  const v = (rom[p] | (rom[p + 1] << 8) | (rom[p + 2] << 16) | (rom[p + 3] << 24)) >>> 0;
+  const t = v - ROM_BASE;
+  return t > 0 && t < rom.length ? t : -1;
+}
+
+/** Candidate groups of pointer positions (all must be accepted) and whether the context is strong. */
+function scriptCandidates(rom: Uint8Array): { group: number[]; strong: boolean }[] {
+  const out: { group: number[]; strong: boolean }[] = [];
+  const n = rom.length;
+  for (let i = 0; i + 6 < n; i++) {
+    const b = rom[i];
+    if (b === 0x0f && rom[i + 1] === 0x00) {
+      const next = rom[i + 6];
+      if (ptrAt(rom, i + 2) >= 0 && LOADWORD_NEXT.has(next)) out.push({ group: [i + 2], strong: next === 0x09 });
+    } else if (b === 0x67) {
+      if (ptrAt(rom, i + 1) >= 0 && MESSAGE_NEXT.has(rom[i + 5])) out.push({ group: [i + 1], strong: false });
+    } else if (b === 0x5c && rom[i + 1] <= 9) {
+      const k = TB_TEXTS[rom[i + 1]];
+      const group = Array.from({ length: k }, (_, j) => i + 6 + 4 * j);
+      if (group.every((p) => ptrAt(rom, p) >= 0)) out.push({ group, strong: true });
+    }
+  }
+  return out;
+}
+
+/** A string starts after the previous one's terminator (or after its 1-3 bytes of zero padding). */
+function startsString(rom: Uint8Array, t: number): boolean {
+  if (t <= 0) return false;
+  if (rom[t - 1] === 0xff) return true;
+  if (t % 4) return false;
+  let i = t - 1;
+  while (i >= 0 && t - i <= 3 && rom[i] === 0) i--;
+  return i >= 0 && i < t - 1 && rom[i] === 0xff;
+}
+
 export function scanDialogue(
   rom: Uint8Array,
   cm: CharMap,
@@ -204,6 +249,21 @@ export function scanDialogue(
 ): Entry[] {
   const cls = byteClasses(cm);
   const inExcluded = (o: number) => exclude.some(([a, b]) => o >= a && o < b);
+
+  // add the script-command pointers to the aligned ones (copy: the caller's map stays as it was)
+  ptrs = new Map([...ptrs].map(([t, l]) => [t, [...l]]));
+  const okTarget = (t: number, strong: boolean) =>
+    t > 0 && !inExcluded(t) && (rom[t - 1] === 0xff || (strong && t % 4 === 0)) && looksLikeText(rom, t, cls);
+  for (const { group, strong } of scriptCandidates(rom)) {
+    const ts = group.map((p) => ptrAt(rom, p));
+    if (!ts.every((t) => okTarget(t, strong))) continue;
+    group.forEach((p, k) => {
+      const list = ptrs.get(ts[k]);
+      if (!list) ptrs.set(ts[k], [p]);
+      else if (!list.includes(p)) list.push(p);
+    });
+  }
+
   const targets: number[] = [];
   for (const t of ptrs.keys()) if (looksLikeText(rom, t, cls) && !inExcluded(t)) targets.push(t);
   targets.sort((a, b) => a - b);
@@ -218,6 +278,8 @@ export function scanDialogue(
       prev.shared = true;
       continue;
     }
+    // junk guard: real strings follow another string's terminator; code/graphics rarely do
+    if (!startsString(rom, t)) continue;
     out.push({
       id: `dialogue:${t.toString(16)}`,
       kind: "dialogue",

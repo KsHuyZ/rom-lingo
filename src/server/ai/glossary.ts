@@ -36,7 +36,11 @@ function build(entries: GlossaryEntry[]): Index {
   const anycase = new Set<string>();
   const plural = new Set<string>();
   for (const e of entries) {
-    for (let n of new Set(names(e))) {
+    // Gen 3 writes some multi-word names run together (DYNAMICPUNCH, SOLARBEAM): match those too
+    const joined = names(e)
+      .filter((n) => /[\s-]/.test(n.trim()) && e.kind !== "term")
+      .map((n) => n.replace(/[\s-]+/g, ""));
+    for (let n of new Set([...names(e), ...joined])) {
       n = n.trim();
       if (!n) continue;
       const single = n.split(/\s+/).length === 1;

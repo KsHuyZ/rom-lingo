@@ -58,11 +58,8 @@ export function approxBytes(text: string): number {
   return n;
 }
 
-/** Plain characters a translator sees — the unit credits are billed on. */
+/** Plain characters a translator sees — used to size AI requests. */
 export function billableChars(text: string): number {
   return [...text.replace(TOKEN_RE, "")].length;
 }
 
-export function chunkCost(chars: number, creditsPer1k: number): number {
-  return Math.max(1, Math.ceil((chars * creditsPer1k) / 1000));
-}
