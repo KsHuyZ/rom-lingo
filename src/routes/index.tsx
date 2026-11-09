@@ -14,6 +14,7 @@ import {
   saveRomHandle,
   type GameSummary,
 } from "~/lib/storage";
+import { useDialog } from "~/components/Dialog";
 import { activeJobs } from "~/server/jobs/fns";
 import { seo } from "~/utils/seo";
 import "~/styles/translate.css";
@@ -33,6 +34,7 @@ const keyOf = (h: { code: string; crc32: number }) => `${h.code}-${h.crc32.toStr
 
 function Library() {
   const navigate = useNavigate();
+  const dialog = useDialog();
   const [games, setGames] = useState<GameSummary[] | null>(null);
   const [running, setRunning] = useState<Running>({});
   const [note, setNote] = useState<string | null>(null);
@@ -203,7 +205,13 @@ function Library() {
                     <button
                       className="btn btn--ghost btn--sm"
                       onClick={async () => {
-                        if (!confirm(`Xoá ${g.title} khỏi máy? Bản dịch và file ROM đã lưu sẽ mất (job AI trên server không bị ảnh hưởng).`)) return;
+                        const ok = await dialog.confirm({
+                          title: `Xoá ${g.title}?`,
+                          message: "Bản dịch và file ROM đã lưu trên máy sẽ mất. Job AI trên server không bị ảnh hưởng.",
+                          confirmLabel: "Xoá",
+                          danger: true,
+                        });
+                        if (!ok) return;
                         await deleteProject(g.key);
                         refresh();
                       }}

@@ -16,7 +16,12 @@ export function GoogleSignIn({ onDone, prompt = true }: { onDone: () => void; pr
     if (!tap) return;
     let alive = true;
     const fetchOptions = {
-      onSuccess: () => alive && done.current(),
+      onSuccess: () => {
+        // `useSession` only refreshes after /sign-in, /sign-out…; the One Tap callback is not one
+        // of them, so without this the header keeps showing "Đăng nhập" although the cookie is set
+        authClient.$store.notify("$sessionSignal");
+        if (alive) done.current();
+      },
       onError: (ctx: { error: { message?: string } }) => alive && setError(ctx.error.message ?? "Đăng nhập thất bại"),
     };
     const renderButton = () => {

@@ -1,6 +1,7 @@
 // src/routes/__root.tsx
 // Root route: HTML document shell only. Header + page outlet.
 import { createRootRouteWithContext, Outlet, HeadContent, Scripts } from "@tanstack/react-router";
+import { DialogProvider } from "~/components/Dialog";
 import { SiteHeader } from "~/components/SiteHeader";
 import "../global.css";
 
@@ -28,10 +29,12 @@ function RootDocument() {
         <HeadContent />
       </head>
       <body>
-        <SiteHeader />
-        <main id="main-content">
-          <Outlet />
-        </main>
+        <DialogProvider>
+          <SiteHeader />
+          <main id="main-content">
+            <Outlet />
+          </main>
+        </DialogProvider>
         <Scripts />
       </body>
     </html>

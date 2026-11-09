@@ -332,3 +332,25 @@ button:focus-visible { outline: 3px dashed var(--lcd-3); outline-offset: 2px; }
   color: var(--lcd-1);
   border-style: dashed;
 }
+
+/* ---- shared dialog (components/Dialog.tsx) */
+.btn--danger {
+  background: var(--danger);
+  color: #fff;
+  box-shadow: 0 4px 0 #6e1428, 0 4px 0 3px var(--bezel);
+}
+.btn--danger:hover { background: #c4284a; }
+.btn--danger:active { box-shadow: 0 0 0 #6e1428, 0 0 0 3px var(--bezel); }
+.dlg {
+  margin: auto;
+  width: min(420px, calc(100vw - 2rem));
+  padding: var(--space-6);
+  background: var(--lcd-3);
+  color: var(--lcd-0);
+  border: 4px solid var(--bezel);
+  box-shadow: 6px 6px 0 var(--bezel);
+}
+.dlg::backdrop { background: rgba(22, 18, 46, 0.6); }
+.dlg__title { margin: 0 0 var(--space-3); font-size: 1.3rem; }
+.dlg__msg { margin: 0 0 var(--space-4); white-space: pre-line; }
+.dlg__actions { display: flex; justify-content: flex-end; gap: var(--space-3); flex-wrap: wrap; }

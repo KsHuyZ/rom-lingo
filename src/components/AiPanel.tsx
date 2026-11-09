@@ -1,5 +1,6 @@
 // AI auto-translation panel: account + quote + live job progress (SSE).
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useDialog } from "~/components/Dialog";
 import { GoogleSignIn } from "~/components/GoogleSignIn";
 import { quote, type PlanItem } from "~/lib/job-plan";
 import type { ChunkResult } from "~/server/database/schema";
@@ -74,6 +75,7 @@ export function AiPanel({
   /** open another game by its project key (`CODE-crc32`) */
   onSwitchGame: (key: string) => void;
 }) {
+  const dialog = useDialog();
   const [account, setAccount] = useState<Account | undefined>(undefined);
   const [job, setJob] = useState<JobSnapshot | null>(null);
   // Pokémon names are never translated, so "species" is not offered at all
@@ -205,7 +207,17 @@ export function AiPanel({
 
   const control = async (action: "pause" | "resume" | "cancel") => {
     if (!job) return;
-    if (action === "cancel" && !confirm("Huỷ job? Phần đã dịch được giữ lại.")) return;
+    if (
+      action === "cancel" &&
+      !(await dialog.confirm({
+        title: "Huỷ job?",
+        message: "Phần đã dịch được giữ lại.",
+        confirmLabel: "Huỷ job",
+        cancelLabel: "Không",
+        danger: true,
+      }))
+    )
+      return;
     setJob(await jobControl({ data: { jobId: job.id, action } }));
   };
 
@@ -311,8 +323,13 @@ export function AiPanel({
             <button
               className="ai__link"
               title="Gỡ bản dịch AI nằm trên chuỗi rác (do job cũ). Build vốn đã bỏ qua chúng; câu bạn tự dịch không bị đụng."
-              onClick={() => {
-                if (confirm(`Gỡ ${junkAiCount} bản dịch/gợi ý AI trên chuỗi rác?`)) onPurgeJunk();
+              onClick={async () => {
+                const ok = await dialog.confirm({
+                  title: "Dọn chuỗi rác",
+                  message: `Gỡ ${junkAiCount} bản dịch/gợi ý AI trên chuỗi rác?`,
+                  confirmLabel: "Gỡ",
+                });
+                if (ok) onPurgeJunk();
               }}
             >
               Dọn {junkAiCount.toLocaleString()} bản dịch AI trên chuỗi rác
@@ -329,9 +346,11 @@ export function AiPanel({
             <button
               className="ai__link"
               title="Chạy lại bộ kiểm tra hiện tại trên các bản dịch AI đã lưu; câu không đạt chuyển sang 'cần xem lại'"
-              onClick={() => {
+              onClick={async () => {
                 const n = onRecheck();
-                alert(n ? `${n} bản dịch AI không đạt, đã chuyển sang "cần xem lại". Bấm "Làm lại" để dịch lại.` : "Tất cả bản dịch AI đều đạt.");
+                await dialog.alert(
+                  n ? `${n} bản dịch AI không đạt, đã chuyển sang "cần xem lại". Bấm "Làm lại" để dịch lại.` : "Tất cả bản dịch AI đều đạt.",
+                );
               }}
             >
               Kiểm tra lại bản dịch AI
@@ -341,9 +360,9 @@ export function AiPanel({
             <button
               className="ai__link"
               title="Sửa tại chỗ các gợi ý lỗi chỉ vì dấu câu font không có (— thành -), không gọi AI. Bỏ qua chuỗi rác."
-              onClick={() => {
+              onClick={async () => {
                 const n = onFix();
-                alert(n ? `Đã tự sửa ${n} câu.` : "Không có câu nào sửa được tự động.");
+                await dialog.alert(n ? `Đã tự sửa ${n} câu.` : "Không có câu nào sửa được tự động.");
               }}
             >
               Tự sửa lỗi dấu câu
@@ -353,8 +372,13 @@ export function AiPanel({
             <button
               className="ai__link"
               title="Bỏ các gợi ý AI đang bị đánh dấu lỗi để dịch lại bằng AI (không đụng tới câu đã dịch)"
-              onClick={() => {
-                if (confirm(`Bỏ ${flaggedCount} gợi ý lỗi để dịch lại?`)) onReset("flagged");
+              onClick={async () => {
+                const ok = await dialog.confirm({
+                  title: "Làm lại câu lỗi",
+                  message: `Bỏ ${flaggedCount} gợi ý lỗi để dịch lại?`,
+                  confirmLabel: "Bỏ gợi ý",
+                });
+                if (ok) onReset("flagged");
               }}
             >
               Làm lại {flaggedCount.toLocaleString()} câu lỗi
@@ -364,8 +388,14 @@ export function AiPanel({
             <button
               className="ai__link"
               title="Xoá mọi bản dịch do AI tạo (câu bạn đã tự sửa được giữ lại) để dịch lại từ đầu"
-              onClick={() => {
-                if (confirm(`Xoá ${aiCount} bản dịch AI (cả câu lỗi) để dịch lại? Câu bạn đã sửa tay được giữ.`)) onReset("all");
+              onClick={async () => {
+                const ok = await dialog.confirm({
+                  title: "Xoá bản dịch AI",
+                  message: `Xoá ${aiCount} bản dịch AI (cả câu lỗi) để dịch lại? Câu bạn đã sửa tay được giữ.`,
+                  confirmLabel: "Xoá",
+                  danger: true,
+                });
+                if (ok) onReset("all");
               }}
             >
               Xoá {aiCount.toLocaleString()} bản dịch AI
