@@ -7,7 +7,7 @@ import { translationChunks, translationJobs, type ChunkItem, type ChunkResult } 
 import { providers, ProviderError, type ChatProvider } from "../ai/providers";
 import { translateChunk } from "../ai/translate";
 import { jobEvents } from "./events";
-import { finalizeIfDone, toSnapshot } from "./service";
+import { finalizeIfDone, toSnapshot, PUBLIC_JOB_ERRORS } from "./service";
 
 const MAX_ATTEMPTS = 3;
 const STALE_LOCK = "5 minutes"; // a 'running' chunk older than this was orphaned by a crash
@@ -81,9 +81,8 @@ async function runProviders(c: Claimed): Promise<{ results: ChunkResult[]; provi
 
 /** message safe to show in the browser: never echo upstream bodies or hosts */
 function publicError(e: Error | null): string {
-  if (!e) return "Dịch thất bại";
-  if (e instanceof ProviderError) return e.transient ? "Dịch vụ AI đang bận, vui lòng thử lại sau" : "Dịch vụ AI chưa sẵn sàng";
-  return "Dịch thất bại";
+  if (e instanceof ProviderError) return e.transient ? PUBLIC_JOB_ERRORS[0] : PUBLIC_JOB_ERRORS[1];
+  return PUBLIC_JOB_ERRORS[2];
 }
 
 async function processChunk(c: Claimed) {

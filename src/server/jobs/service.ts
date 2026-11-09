@@ -13,6 +13,16 @@ import { jobEvents, type JobSnapshot } from "./events";
 
 type JobRow = typeof translationJobs.$inferSelect;
 
+/** errors whose message is safe to show in the browser */
+export class UserError extends Error {}
+
+/** the only job.error strings the browser may see (older rows may hold raw upstream text) */
+export const PUBLIC_JOB_ERRORS = [
+  "Dịch vụ AI đang bận, vui lòng thử lại sau",
+  "Dịch vụ AI chưa sẵn sàng",
+  "Dịch thất bại",
+] as const;
+
 export function toSnapshot(j: JobRow): JobSnapshot {
   return {
     id: j.id,
@@ -24,7 +34,7 @@ export function toSnapshot(j: JobRow): JobSnapshot {
     doneChunks: j.doneChunks,
     failedChunks: j.failedChunks,
     fallbackChunks: j.fallbackChunks,
-    error: j.error,
+    error: j.error === null ? null : (PUBLIC_JOB_ERRORS as readonly string[]).includes(j.error) ? j.error : PUBLIC_JOB_ERRORS[2],
     createdAt: j.createdAt.toISOString(),
   };
 }
@@ -52,7 +62,7 @@ export async function createJob(
           inArray(translationJobs.status, ACTIVE),
         ),
       );
-    if (existing.length) throw new Error("ROM này đang có một job dịch chưa xong");
+    if (existing.length) throw new UserError("ROM này đang có một job dịch chưa xong");
 
     const [j] = await tx
       .insert(translationJobs)
@@ -148,7 +158,7 @@ export async function controlJob(jobId: string, userId: string, action: "pause" 
       .from(translationJobs)
       .where(and(eq(translationJobs.id, jobId), eq(translationJobs.userId, userId)))
       .for("update");
-    if (!cur) throw new Error("Không tìm thấy job");
+    if (!cur) throw new UserError("Không tìm thấy job");
     if (!ACTIVE.includes(cur.status)) return cur;
 
     if (action === "pause") {

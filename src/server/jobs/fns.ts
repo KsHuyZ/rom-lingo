@@ -5,7 +5,7 @@ import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { AUTH_DISABLED, getSessionUser, requireUser } from "../auth";
 import { LIMITS } from "~/lib/job-plan";
-import { controlJob, createJob, latestJobForRom, toSnapshot } from "./service";
+import { controlJob, createJob, latestJobForRom, toSnapshot, UserError } from "./service";
 import { ensureWorker } from "./worker";
 
 const headers = () => new Headers(getRequestHeaders() as HeadersInit);
@@ -49,7 +49,8 @@ export const startJob = createServerFn({ method: "POST" })
     try {
       return { ok: true as const, job: await createJob(user.id, data) };
     } catch (e) {
-      return { ok: false as const, error: (e as Error).message };
+      if (!(e instanceof UserError)) console.error("[startJob]", e);
+      return { ok: false as const, error: e instanceof UserError ? e.message : "Không tạo được job, vui lòng thử lại" };
     }
   });
 
