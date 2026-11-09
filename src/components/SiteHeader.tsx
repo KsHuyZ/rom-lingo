@@ -12,7 +12,6 @@ export function SiteHeader() {
           RomLingo
         </Link>
         <nav className="nav__links" aria-label="Chính">
-          {/* future nav links go here */}
           <DonateButton />
           <UserMenu />
         </nav>

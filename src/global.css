@@ -315,9 +315,11 @@ button:focus-visible { outline: 3px dashed var(--lcd-3); outline-offset: 2px; }
 .donate::backdrop { background: rgba(22, 18, 46, 0.6); }
 .donate__title { margin: 0; font-size: 1.4rem; }
 .donate__text { margin: 0; }
+.donate__acc { font-size: 1.15rem; letter-spacing: 0.04em; user-select: all; }
 .donate__qr {
   width: 240px;
-  height: 240px;
+  height: auto;
+  aspect-ratio: 651 / 728;
   object-fit: contain;
   background: #fff;
   border: 3px solid var(--bezel);

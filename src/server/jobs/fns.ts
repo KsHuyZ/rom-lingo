@@ -5,7 +5,7 @@ import { getRequestHeaders } from "@tanstack/react-start/server";
 import { z } from "zod";
 import { AUTH_DISABLED, getSessionUser, requireUser } from "../auth";
 import { LIMITS } from "~/lib/job-plan";
-import { controlJob, createJob, latestJobForRom, toSnapshot, UserError } from "./service";
+import { activeJobsForUser, controlJob, createJob, latestJobForRom, toSnapshot, UserError } from "./service";
 import { ensureWorker } from "./worker";
 
 const headers = () => new Headers(getRequestHeaders() as HeadersInit);
@@ -63,6 +63,12 @@ export const findJob = createServerFn({ method: "GET" })
     const j = await latestJobForRom(user.id, data.gameCode, data.romCrc32);
     return j ? toSnapshot(j) : null;
   });
+
+export const activeJobs = createServerFn({ method: "GET" }).handler(async () => {
+  ensureWorker();
+  const user = await getSessionUser(headers());
+  return user ? activeJobsForUser(user.id) : [];
+});
 
 export const jobControl = createServerFn({ method: "POST" })
   .validator(z.object({ jobId: z.string().uuid(), action: z.enum(["pause", "resume", "cancel"]) }))

@@ -8,6 +8,7 @@ export type WorkerRequest =
 
 export type WorkerResponse =
   | { type: "header"; header: RomHeader; /** a Vietnamese font profile exists for this ROM */ viFont: boolean }
+  | { type: "thumb"; width: number; height: number; /** RGBA pixels */ rgba: ArrayBuffer }
   | { type: "entries"; entries: Entry[]; ms: number }
   | {
       type: "built";

@@ -1,0 +1,15 @@
+name: Keep gemini-web-to-api awake
+
+# Render free tier spins down after ~15 min idle; ping every 10 min.
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Ping /health
+        run: curl -fsS --retry 3 --retry-delay 5 --max-time 60 https://gemini-web-to-api-pq6j.onrender.com/health

@@ -4,7 +4,7 @@ import { GoogleSignIn } from "~/components/GoogleSignIn";
 import { quote, type PlanItem } from "~/lib/job-plan";
 import type { ChunkResult } from "~/server/database/schema";
 import type { JobEvent, JobSnapshot } from "~/server/jobs/events";
-import { findJob, getAccount, jobControl, startJob } from "~/server/jobs/fns";
+import { activeJobs, findJob, getAccount, jobControl, startJob } from "~/server/jobs/fns";
 
 type Account = Awaited<ReturnType<typeof getAccount>>;
 
@@ -43,6 +43,7 @@ export function AiPanel({
   onPurgeJunk,
   autoRetry,
   onAutoRetryStarted,
+  onSwitchGame,
 }: {
   gameCode: string;
   romCrc32: string;
@@ -70,6 +71,8 @@ export function AiPanel({
   /** lines whose AI answer did not fit its message box, with the rejection to correct */
   autoRetry: PlanItem[];
   onAutoRetryStarted: (ids: string[]) => void;
+  /** open another game by its project key (`CODE-crc32`) */
+  onSwitchGame: (key: string) => void;
 }) {
   const [account, setAccount] = useState<Account | undefined>(undefined);
   const [job, setJob] = useState<JobSnapshot | null>(null);
@@ -113,6 +116,25 @@ export function AiPanel({
   // live progress
   const jobId = job?.id;
   const live = job ? ACTIVE.has(job.status) : false;
+
+  // only one game may translate at a time: another game's running job blocks starting this one
+  const [other, setOther] = useState<{ gameCode: string; romCrc32: string } | null>(null);
+  useEffect(() => {
+    if (!account || live) return setOther(null);
+    let off = false;
+    activeJobs()
+      .then((jobs) => {
+        if (off) return;
+        const j = jobs.find(
+          (x) => (x.status === "running" || x.status === "queued") && !(x.gameCode === gameCode && x.romCrc32 === romCrc32),
+        );
+        setOther(j ? { gameCode: j.gameCode, romCrc32: j.romCrc32 } : null);
+      })
+      .catch(() => setOther(null));
+    return () => {
+      off = true;
+    };
+  }, [account?.user.id, gameCode, romCrc32, live]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!jobId) return;
     const es = new EventSource(`/api/jobs/${jobId}/events`);
@@ -172,14 +194,14 @@ export function AiPanel({
   const [autoOn, setAutoOn] = useState(true);
   const retrying = useRef(false);
   useEffect(() => {
-    if (!autoOn || !account || live || busy || retrying.current || !autoRetry.length) return;
+    if (!autoOn || !account || live || busy || other || retrying.current || !autoRetry.length) return;
     retrying.current = true;
     const ids = autoRetry.map((i) => i.id);
     run(autoRetry).then((ok) => {
       if (ok) onAutoRetryStarted(ids);
       retrying.current = false;
     });
-  }, [autoOn, account, live, busy, autoRetry]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [autoOn, account, live, busy, other, autoRetry]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const control = async (action: "pause" | "resume" | "cancel") => {
     if (!job) return;
@@ -351,10 +373,18 @@ export function AiPanel({
           )}
           <button
             className="btn btn--primary btn--sm"
-            disabled={busy || !candidates.length}
+            disabled={busy || !candidates.length || !!other}
             onClick={start}
           >
             {busy ? "Đang tạo job…" : "Dịch tự động"}
+          </button>
+        </div>
+      )}
+      {!live && other && (
+        <div className="ai__muted">
+          Đang dịch game khác ({other.gameCode}); mỗi lần chỉ chạy một game.{" "}
+          <button className="ai__link" onClick={() => onSwitchGame(`${other.gameCode}-${other.romCrc32}`)}>
+            Chuyển sang game đó
           </button>
         </div>
       )}

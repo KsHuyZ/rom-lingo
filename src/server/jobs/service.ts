@@ -63,6 +63,18 @@ export async function createJob(
         ),
       );
     if (existing.length) throw new UserError("ROM này đang có một job dịch chưa xong");
+    // one game at a time per user: a job for another ROM must finish (or be paused/cancelled) first
+    const [other] = await tx
+      .select({ gameCode: translationJobs.gameCode })
+      .from(translationJobs)
+      .where(
+        and(
+          eq(translationJobs.userId, userId),
+          inArray(translationJobs.status, ["queued", "running"]),
+        ),
+      )
+      .limit(1);
+    if (other) throw new UserError(`Đang dịch game khác (${other.gameCode}). Hãy đợi xong, tạm dừng hoặc huỷ trước.`);
 
     const [j] = await tx
       .insert(translationJobs)
@@ -114,6 +126,21 @@ export async function latestJobForRom(userId: string, gameCode: string, romCrc32
     .orderBy(desc(translationJobs.createdAt))
     .limit(1);
   return j ?? null;
+}
+
+/** Every unfinished job of the user (any ROM), for the game list. */
+export async function activeJobsForUser(userId: string) {
+  return db
+    .select({
+      gameCode: translationJobs.gameCode,
+      romCrc32: translationJobs.romCrc32,
+      status: translationJobs.status,
+      doneChunks: translationJobs.doneChunks,
+      failedChunks: translationJobs.failedChunks,
+      totalChunks: translationJobs.totalChunks,
+    })
+    .from(translationJobs)
+    .where(and(eq(translationJobs.userId, userId), inArray(translationJobs.status, ACTIVE)));
 }
 
 export async function doneResults(jobId: string): Promise<ChunkResult[]> {

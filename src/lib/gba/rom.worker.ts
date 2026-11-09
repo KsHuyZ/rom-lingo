@@ -5,6 +5,7 @@ import { buildRom, createBps, extractAll, readHeader, type Entry } from "./rom";
 import { applyFont, measureWidths } from "./font-patch";
 import { makeMeasure, wrapDialogue, WrapError } from "./wrap";
 import { VI_PROFILES, viSlots, viTargetCharMap, type ViProfile } from "./vi-profile";
+import { extractThumb } from "./thumb";
 import type { WorkerRequest, WorkerResponse } from "./protocol";
 
 let rom: Uint8Array | null = null;
@@ -80,6 +81,12 @@ self.onmessage = (ev: MessageEvent<WorkerRequest>) => {
         const header = readHeader(rom);
         viProfile = findProfile(header);
         post({ type: "header", header, viFont: viProfile !== null });
+        try {
+          const t = extractThumb(rom, header.code);
+          if (t) post({ type: "thumb", width: t.width, height: t.height, rgba: t.rgba.buffer as ArrayBuffer }, [t.rgba.buffer]);
+        } catch {
+          /* cover art is optional: never block loading */
+        }
         extract();
         break;
       }
