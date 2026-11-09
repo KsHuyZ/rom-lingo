@@ -79,6 +79,13 @@ async function runProviders(c: Claimed): Promise<{ results: ChunkResult[]; provi
   throw firstError;
 }
 
+/** message safe to show in the browser: never echo upstream bodies or hosts */
+function publicError(e: Error | null): string {
+  if (!e) return "Dịch thất bại";
+  if (e instanceof ProviderError) return e.transient ? "Dịch vụ AI đang bận, vui lòng thử lại sau" : "Dịch vụ AI chưa sẵn sàng";
+  return "Dịch thất bại";
+}
+
 async function processChunk(c: Claimed) {
   let outcome: { results: ChunkResult[]; provider: ChatProvider } | null = null;
   let error: Error | null = null;
@@ -117,14 +124,15 @@ async function processChunk(c: Claimed) {
         })
         .where(eq(translationChunks.id, c.id));
     } else {
-      // give up on this chunk: mark it failed
+      // give up on this chunk: mark it failed (detail stays server-side; job.error is shown to the browser)
+      console.error(`[worker] chunk ${c.job_id}#${c.idx} failed:`, error?.message);
       await tx
         .update(translationChunks)
         .set({ status: "failed", error: error?.message ?? "unknown", updatedAt: sql`now()` })
         .where(eq(translationChunks.id, c.id));
       await tx
         .update(translationJobs)
-        .set({ failedChunks: sql`${translationJobs.failedChunks} + 1`, error: error?.message ?? null, updatedAt: sql`now()` })
+        .set({ failedChunks: sql`${translationJobs.failedChunks} + 1`, error: publicError(error), updatedAt: sql`now()` })
         .where(eq(translationJobs.id, c.job_id));
     }
     const finished = await finalizeIfDone(tx, c.job_id);
@@ -139,7 +147,8 @@ async function processChunk(c: Claimed) {
       type: "chunk",
       job: snap,
       chunkIdx: c.idx,
-      provider: outcome.provider.name === "fallback" ? `${outcome.provider.label} (dự phòng)` : outcome.provider.label,
+      // generic on purpose: provider.label is the backend host
+      provider: outcome.provider.name === "fallback" ? "AI (dự phòng)" : "AI",
       results: outcome.results,
     });
   }
